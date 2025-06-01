@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Computer Graphics Assignment - 3D Robot Scene</title>
+    
+    <!-- External Stylesheets -->
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Main Canvas Container -->
+    <div id="canvas-container">
+        <canvas id="webgl-canvas" width="800" height="600"></canvas>
+    </div>
+    
+    <!-- Control Panel -->
+    <div id="controls">
+        <h2>Scene Controls</h2>
+        
+        <!-- Camera Settings -->
+        <div class="control-group">
+            <h3>Camera Settings</h3>
+            <label>
+                View Angle (degrees): 
+                <input type="text" id="viewAngle" value="60">
+            </label>
+            <label>
+                Camera Distance: 
+                <input type="text" id="camOrthoDistance" value="8">
+            </label>
+        </div>
+        
+        <!-- Camera Position Presets -->
+        <div class="control-group">
+            <h3>Camera Position</h3>
+            <label><input type="radio" name="camPos" value="lft" checked> Left-Front-Top</label>
+            <label><input type="radio" name="camPos" value="lfb"> Left-Front-Bottom</label>
+            <label><input type="radio" name="camPos" value="lbt"> Left-Back-Top</label>
+            <label><input type="radio" name="camPos" value="lbb"> Left-Back-Bottom</label>
+            <label><input type="radio" name="camPos" value="rft"> Right-Front-Top</label>
+            <label><input type="radio" name="camPos" value="rfb"> Right-Front-Bottom</label>
+            <label><input type="radio" name="camPos" value="rbt"> Right-Back-Top</label>
+            <label><input type="radio" name="camPos" value="rbb"> Right-Back-Bottom</label>
+        </div>
+        
+        <!-- Redraw Button -->
+        <div class="control-group">
+            <button id="redrawBtn">Redraw Scene</button>
+        </div>
+        
+        <!-- Animation Controls -->
+        <div class="control-group">
+            <h3>Animation</h3>
+            <button id="startAnimBtn">Start Animation</button>
+            <button id="stopAnimBtn">Stop Animation</button>
+        </div>
+        
+        <!-- Robot Part Controls -->
+        <div class="control-group">
+            <h3>Robot Control</h3>
+            <label><input type="radio" name="robotPart" value="rightArm" checked> Right Arm</label>
+            <label><input type="radio" name="robotPart" value="leftArm"> Left Arm</label>
+            <label><input type="radio" name="robotPart" value="head"> Head</label>
+            <label><input type="radio" name="robotPart" value="rightLeg"> Right Leg</label>
+            <label><input type="radio" name="robotPart" value="leftLeg"> Left Leg</label>
+            <label><input type="radio" name="robotPart" value="parade"> Parade</label>
+            <label><input type="radio" name="robotPart" value="robotMetal"> Robot Metal</label>
+        </div>
+    </div>
+
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"></script>
+    
+    <!-- If you have local copies of libraries, use these instead -->
+    <!-- <script src="libs/gl-matrix-min.js"></script> -->
+    <!-- <script src="libs/webgl-debug.js"></script> -->
+    
+    <!-- Application Scripts -->
+    <script src="js/shaders.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/geometry.js"></script>
+    <script src="js/textures.js"></script>
+    <script src="js/camera.js"></script>
+    <script src="js/robot.js"></script>
+    <script src="js/animation.js"></script>
+    <script src="js/controls.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
