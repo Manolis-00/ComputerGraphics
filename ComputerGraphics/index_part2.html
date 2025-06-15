@@ -1,0 +1,443 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="js/gl-matrix-min.js"></script>
+
+<script id="vertexShader" type="x-shader/x-vertex">
+    attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
+
+    uniform mat4 uVerticesTransform;
+    uniform mat4 uModelTransform;
+    uniform mat4 uPerspectiveViewTransform;
+
+    varying vec4 vColor;
+
+    void main() {
+        gl_Position = uPerspectiveViewTransform * uModelTransform * aVertexPosition;
+        vColor = aVertexColor;
+    }
+</script>
+
+<script id="fragmentShader" type="x-shader/x-fragment">
+    precision mediump float;
+    varying vec4 vColor;
+
+    void main() {
+        gl_FragColor = vColor;
+    }
+</script>
+
+
+
+<script>
+
+var gl;
+var canvas;
+var shadersProgram;
+var vertexPositionAttributePointer;
+var vertexColorAttributePointer;
+
+var verticesTransformUniformPointer;
+var modelUniformPointer;
+var perspectiveViewUniformPointer;
+
+var vertexBuffer;
+var colorBuffer;
+var indexBuffer;
+
+var translationMatrix = new Float32Array(16);
+var finalMatrix = new Float32Array(16);
+var requestID = 0;
+
+var numberOfFrames;
+var previousTime;
+var currentTime;
+
+var totalAngle = 0.0;
+var totalZ = 0.01;
+
+var perspectiveMatrix = new Float32Array(16);
+var viewMatrix = new Float32Array(16);
+var pvMatrix = new Float32Array(16);
+
+var rotationXMatrix = new Float32Array(16);
+var totalX = 0.0, totalY = 0.0;
+
+
+//var requestID = 0;
+
+
+// Function for creating the WebGL context
+function createGLContext(inCanvas) {
+    var outContext = null;
+    outContext = inCanvas.getContext("webgl2");
+    
+    if (!outContext)
+        outContext = inCanvas.getContext("experimental-webgl");
+    if (!outContext)
+        alert("ERROR: Couldn't create WebGL rendering context.");
+
+    return outContext;
+}
+
+// Function for compiling shaders
+function createCompileShader(shaderType, shaderSource) {
+    var outShader = gl.createShader(shaderType);
+    gl.shaderSource(outShader, shaderSource);
+    gl.compileShader(outShader);
+
+    if (!gl.getShaderParameter(outShader, gl.COMPILE_STATUS)) {
+        alert("ERROR: Couldn't compile shader. " + gl.getShaderInfoLog(outShader));
+        gl.deleteShader(outShader);
+        outShader = null;
+    }
+    
+    return outShader;
+}
+
+// Function for initializing shaders
+function initShaders() {
+    var vertexShaderSource = document.getElementById("vertexShader").textContent;
+    var fragmentShaderSource = document.getElementById("fragmentShader").textContent;
+    var vertexShader = createCompileShader(gl.VERTEX_SHADER, vertexShaderSource);
+    var fragmentShader = createCompileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
+
+    shadersProgram = gl.createProgram();
+    gl.attachShader(shadersProgram, vertexShader);
+    gl.attachShader(shadersProgram, fragmentShader);
+    gl.linkProgram(shadersProgram);
+
+    if (!gl.getProgramParameter(shadersProgram, gl.LINK_STATUS)) 
+        alert("ERROR: Couldn't link shaders.");
+    
+    gl.useProgram(shadersProgram);
+    vertexPositionAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexPosition");
+    gl.enableVertexAttribArray(vertexPositionAttributePointer);
+
+    vertexColorAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexColor");
+    gl.enableVertexAttribArray(vertexColorAttributePointer);
+
+    modelUniformPointer = gl.getUniformLocation(shadersProgram, "uModelTransform");
+    perspectiveViewUniformPointer = gl.getUniformLocation(shadersProgram, "uPerspectiveViewTransform");
+
+    verticesTransformUniformPointer = gl.getUniformLocation(shadersProgram, "uVerticesTransform");
+}
+
+// Function for initializing buffers
+function initBuffers() {
+    var cubeVertices = new Float32Array([
+                        // Front face
+                        -1.0, -1.0, 1.0,
+                        1.0, -1.0, 1.0,
+                        1.0, 1.0, 1.0,
+                        -1.0, 1.0, 1.0,
+                
+                        // Back face
+                        -1.0, -1.0, -1.0,
+                        -1.0, 1.0, -1.0,
+                        1.0, 1.0, -1.0,
+                        1.0, -1.0, -1.0,
+                
+                        // Top face
+                        -1.0, 1.0, -1.0,
+                        -1.0, 1.0, 1.0,
+                        1.0, 1.0, 1.0,
+                        1.0, 1.0, -1.0,
+
+                        // Bottom face
+                        -1.0, -1.0, -1.0,
+                        1.0, -1.0, -1.0,
+                        1.0, -1.0, 1.0,
+                        -1.0, -1.0, 1.0,
+
+                        // Right face
+                        1.0, -1.0, -1.0,
+                        1.0, 1.0, -1.0,
+                        1.0, 1.0, 1.0,
+                        1.0, -1.0, 1.0,
+
+                        // Left face
+                        -1.0, -1.0, -1.0,
+                        -1.0, -1.0, 1.0,
+                        -1.0, 1.0, 1.0,
+                        -1.0, 1.0, -1.0
+    ]);
+
+    vertexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
+    vertexBuffer.itemSize = 3;
+    vertexBuffer.itemCount = 24;
+
+    var cubeColors = [
+                        // Front face (red)
+                        1.0, 0.0, 0.0, 1.0,
+
+                        // Back face (green)
+                        0.0, 1.0, 0.0, 1.0,
+            
+                        // Top face (blue)
+                        0.0, 0.0, 1.0, 1.0,
+
+                        // Bottom face (yellow)
+                        1.0, 1.0, 0.0, 1.0,
+
+                        // Right face (magenta)
+                        1.0, 0.0, 1.0, 1.0,
+            
+                        // Left face (cyan)
+                        0.0, 1.0, 1.0, 1.0
+    ];
+
+    // Maybe find way to change this -- Done with ai
+    var colors = [];
+    for (var i = 0; i < cubeColors.length; i += 4) {
+        var color = cubeColors.slice(i, i + 4);
+        for (var j = 0; j < 4; j++) {
+            colors = colors.concat(color);      
+        } 
+    }
+
+    var newColors = new Float32Array(colors);
+
+    console.log("Colors length: ", newColors.length);
+    console.log("Vertices length: ", cubeVertices.length);
+    
+    colorBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, newColors, gl.STATIC_DRAW);
+    //gl.bufferData(gl.ARRAY_BUFFER, cubeColors, gl.STATIC_DRAW);
+    colorBuffer.itemSize = 4;
+    colorBuffer.itemCount = 24;
+
+    var cubeIndeces = new Uint16Array([
+                        // Front face
+                        0, 1, 2, 0, 2, 3, 
+
+                        // Back face
+                        4, 5, 6, 4, 6, 7,
+
+                        // Top face
+                        8, 9, 10, 8, 10, 11,
+
+                        // Bottom face
+                        12, 13, 14, 12, 14, 15,
+        
+                        // Right face
+                        16, 17, 18, 16, 18, 19,
+
+                        // Left face
+                        20, 21, 22, 20, 22, 23
+
+        
+    ])
+    
+    indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, cubeIndeces, gl.STATIC_DRAW);
+    //indexBuffer.itemSize = 1;
+    indexBuffer.itemCount = 36;
+}
+
+// Function for drawing the scene
+function drawScene() {
+    var viewAngle;
+    viewAngle = document.getElementById("viewAngleInput").value;
+    var viewAngleRads = parseFloat(viewAngle);
+    viewAngleRads = viewAngleRads*Math.PI/180.0;
+
+    console.log("View angle in rads: ", viewAngleRads);
+
+    var rotationAngle;
+    rotationAngle = document.getElementById("rotationAngleInput").value;
+    var rotationAngleRads = parseFloat(rotationAngle);
+    rotationAngleRads = rotationAngleRads*Math.PI/180.0;
+    totalAngle += rotationAngleRads;
+
+    // If the total angle is bigger than 360deg (2pi), 
+    // turn it into the corresponding one that's smaller than 360deg
+    // If it's negative, turn it into the minimum corresponding positive angle
+    if (totalAngle >= 2*Math.PI) 
+        totalAngle = totalAngle - 2*Math.PI;
+    else if (totalAngle < 0) 
+        totalAngle = totalAngle + 2*Math.PI;
+
+    var camHeight;
+    camHeight = document.getElementById("camHeightInput").value;
+    var camHeightNum = parseFloat(camHeight);
+    totalZ += camHeightNum;
+
+    var camOrthoDistance = document.getElementById("camOrthoDistance").value;
+    var farPlane = 8000;
+    if (camOrthoDistance > 0) // If the user has changed the camera's distance, stop using the default far plane
+        farPlane = 10*camOrthoDistance;
+
+    console.log("Camera ortho distance: ", camOrthoDistance);
+    console.log("Far plane: ", farPlane);
+
+    var radioButtons = document.getElementsByName("camPosition");
+    var selectedCamPosition;
+    for (var i = 0; i < radioButtons.length; i++) {
+        if (radioButtons[i].checked) {
+            selectedCamPosition = radioButtons[i].value;
+            break;
+        }
+    }
+
+    console.log("Selected camera position: ", selectedCamPosition);
+
+    var camPositionArr = [];
+    if (selectedCamPosition == "lft")
+        camPositionArr = [-camOrthoDistance, -camOrthoDistance, camOrthoDistance];
+    else if (selectedCamPosition == "lfb")
+        camPositionArr = [-camOrthoDistance, -camOrthoDistance, -camOrthoDistance];
+    else if (selectedCamPosition == "lbt")
+        camPositionArr = [-camOrthoDistance, camOrthoDistance, camOrthoDistance];
+    else if (selectedCamPosition == "lbb")
+        camPositionArr = [camOrthoDistance, camOrthoDistance, camOrthoDistance];
+    else if (selectedCamPosition == "rft")
+        camPositionArr = [-camOrthoDistance, -camOrthoDistance, -camOrthoDistance];
+    else if (selectedCamPosition == "rfb")
+        camPositionArr = [camOrthoDistance, -camOrthoDistance, -camOrthoDistance];
+    else if (selectedCamPosition == "rbt")
+        camPositionArr = [camOrthoDistance, camOrthoDistance, camOrthoDistance];
+    else if (selectedCamPosition == "rbb")
+        camPositionArr = [camOrthoDistance, camOrthoDistance, -camOrthoDistance];
+
+    console.log("Camera position array: ", camPositionArr);
+
+    // Using camOrthoDistance as the rotation radius
+    var x = camOrthoDistance*Math.cos(totalAngle);
+    var y = camOrthoDistance*Math.sin(totalAngle);
+
+	// glMatrix.mat4.lookAt(viewMatrix, camPositionArr, [0, 0, 0], [0, 0, 1]); CHANGED INTO THE LINE BELOW
+    glMatrix.mat4.lookAt(viewMatrix, [x, y, totalZ], [0, 0, 0], [0, 0, 1]);
+	glMatrix.mat4.perspective(perspectiveMatrix, viewAngleRads, 1, 0.001, farPlane);
+    /* view angle = pi/3 (60deg)
+        aspect ratio = 1
+        near visibility threshold = 0.001
+        far visibility threshold = 8000 */
+
+	glMatrix.mat4.multiply(pvMatrix,perspectiveMatrix,viewMatrix);
+	gl.uniformMatrix4fv(perspectiveViewUniformPointer, false, pvMatrix);
+    
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clearing backgrounf and z-buffer
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+    gl.vertexAttribPointer(vertexPositionAttributePointer, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+    gl.vertexAttribPointer(vertexColorAttributePointer, colorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+    for (var p = -0.5; p <= 0.5; p += 0.5) {
+        glMatrix.mat4.fromTranslation(translationMatrix, [0, 0, 0]);
+        gl.uniformMatrix4fv(modelUniformPointer, false, translationMatrix);
+        gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);    
+    }
+
+    /*
+    glMatrix.mat4.fromXRotation(rotationXMatrix, totalAngle);
+
+    //glMatrix.mat4.fromTranslation(translationMatrix, [totalX, totalY, 0]);
+    
+    gl.uniformMatrix4fv(verticesTransformUniformPointer, false, rotationXMatrix);
+    //gl.uniformMatrix4fv(verticesTransformUniformPointer, false, translationMatrix);
+
+    gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);*/
+}
+
+function main() {
+    var minWindowDimension = Math.min(window.innerHeight, window.innerWidth); // Minimum window dimension
+    
+    canvas = document.getElementById("sceneCanvas");
+    // Setting the canvas' dimensions (can change this)
+    canvas.width = 0.95*minWindowDimension; 
+    canvas.height = 0.95*minWindowDimension;
+
+    gl = createGLContext(canvas);
+    //gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas)); // REMEMBER TO CREATE FUNCTION FOR THIS
+
+    initShaders(); // Initializing shaders
+    initBuffers(); // Initializing buffers
+    gl.clearColor(0.5, 0.5, 0.5, 1.0); // Setting the background color to be a dark gray
+    gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+    gl.enable(gl.DEPTH_TEST);
+
+    previousTime = Date.now();
+    numberOfFrames = 0;
+
+    drawScene(); 
+}
+
+function startAnimation() {
+    if (requestID == 0)
+        requestID = window.requestAnimationFrame(animationStep);
+}
+
+function animationStep() {
+    drawScene();
+
+    numberOfFrames++;
+    currentTime = Date.now;
+
+    if (currentTime - previousTime >= 1000) {
+        document.getElementByID("fps").innerHTML = numberOfFrames; // Can be removed if unnecessary
+        numberOfFrames = 0;
+        previousTime = currentTime;
+    }
+
+    requestID = window.requestAnimationFrame(animationStep);
+}
+
+function stopAnimation() {
+    window.cancelAnimationFrame(requestID);
+    requestID = 0;
+}
+
+</script>
+
+</head>
+
+<body onload="main()">
+<canvas id="sceneCanvas"></canvas>
+<p>
+<div>
+    Γωνία θέασης:<input type="text" id="viewAngleInput" value ="60" autocomplete="off"><BR>
+    Ορθογώνια απόσταση της κάμερας:<input type="text" id="camOrthoDistance" value="8" autocomplete="off"><BR>
+</div>
+
+<div>
+    Γωνία περιστροφής της κάμερας:<input type="text" id="rotationAngleInput" value="1" autocomplete="off"><BR>
+    Ύψος της κάμερας:<input type="text" id="camHeightInput" value="0.01" autocomplete="off"><BR>
+</div>
+
+<div>
+    <h3>Θέση κάμερας:</h3>
+    <label><input type="radio" name="camPosition" value="lft" checked> Left-Front-Top</label><BR>
+    <label><input type="radio" name="camPosition" value="lfb"> Left-Front-Bottom</label><BR>
+    <label><input type="radio" name="camPosition" value="lbt"> Left-Back-Top</label><BR>
+    <label><input type="radio" name="camPosition" value="lbb"> Left-Back-Bottom</label><BR>
+    <label><input type="radio" name="camPosition" value="rft"> Right-Front-Top</label><BR>
+    <label><input type="radio" name="camPosition" value="rfb"> Right-Front-Bottom</label><BR>
+    <label><input type="radio" name="camPosition" value="rbt"> Right-Back-Top</label><BR>
+    <label><input type="radio" name="camPosition" value="rbb"> Right-Back-Bottom</label><BR>
+</div>
+
+<div>
+    <button id="startButton" onclick="startAnimation()">Ξεκίνα!</button>
+    <button id="stopButton" onclick="stopAnimation()">Σταμάτα!</button><BR>
+</div>
+
+<!-- Not sure if a display of FPS is necessary-->
+<div>
+    Frame Rate (FPS):<span id="fps">--</span><BR>
+</div>
+<div>
+    <button id="drawSceneButton" onclick="drawScene()">Ξανασχεδίασε!</button>
+</div>
+</p>
+</body>
+</html>
