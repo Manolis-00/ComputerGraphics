@@ -8,7 +8,6 @@
     attribute vec4 aVertexPosition;
     attribute vec4 aVertexColor;
 
-    uniform mat4 uVerticesTransform;
     uniform mat4 uModelTransform;
     uniform mat4 uPerspectiveViewTransform;
 
@@ -35,9 +34,9 @@
 
 var gl;
 var canvas;
-var shadersProgram;
-var vertexPositionAttributePointer;
-var vertexColorAttributePointer;
+var shadersProgram; // Code for vertex & fragment shaders
+var vertexPositionAttributePointer; // Address of aVertexPosition attribute
+var vertexColorAttributePointer; // Variable for storing the vertices
 
 var verticesTransformUniformPointer;
 var modelUniformPointer;
@@ -51,19 +50,9 @@ var translationMatrix = new Float32Array(16);
 var finalMatrix = new Float32Array(16);
 var requestID = 0;
 
-var totalAngle = 0.0;
-var totalZ = 0.01;
-
 var perspectiveMatrix = new Float32Array(16);
 var viewMatrix = new Float32Array(16);
 var pvMatrix = new Float32Array(16);
-
-var rotationXMatrix = new Float32Array(16);
-var totalX = 0.0, totalY = 0.0;
-
-
-//var requestID = 0;
-
 
 // Function for creating the WebGL context
 function createGLContext(inCanvas) {
@@ -80,11 +69,12 @@ function createGLContext(inCanvas) {
 
 // Function for compiling shaders
 function createCompileShader(shaderType, shaderSource) {
-    var outShader = gl.createShader(shaderType);
-    gl.shaderSource(outShader, shaderSource);
-    gl.compileShader(outShader);
+    var outShader = gl.createShader(shaderType); // Creating a shader of the requested type
+    gl.shaderSource(outShader, shaderSource); // Updating the shader with its code in the form of a string
+    gl.compileShader(outShader); // Compiling the shaders' code
 
     if (!gl.getShaderParameter(outShader, gl.COMPILE_STATUS)) {
+        // If compilation fails, print a message with the necessary information and delete the shader
         alert("ERROR: Couldn't compile shader. " + gl.getShaderInfoLog(outShader));
         gl.deleteShader(outShader);
         outShader = null;
@@ -95,99 +85,111 @@ function createCompileShader(shaderType, shaderSource) {
 
 // Function for initializing shaders
 function initShaders() {
-    var vertexShaderSource = document.getElementById("vertexShader").textContent;
-    var fragmentShaderSource = document.getElementById("fragmentShader").textContent;
+    // Creating strings with the vertex & fragment shaders' code
+    var vertexShaderSource = document.getElementById("vertexShader").textContent; 
+    var fragmentShaderSource = document.getElementById("fragmentShader").textContent; 
+
+    // Creating and compiling the shaders
     var vertexShader = createCompileShader(gl.VERTEX_SHADER, vertexShaderSource);
     var fragmentShader = createCompileShader(gl.FRAGMENT_SHADER, fragmentShaderSource);
 
+    // Creating a program for the shaders and attach the shaders to it, then creating the executable file
     shadersProgram = gl.createProgram();
     gl.attachShader(shadersProgram, vertexShader);
     gl.attachShader(shadersProgram, fragmentShader);
     gl.linkProgram(shadersProgram);
 
+    // If the creation of the executable file fails, alert this message
     if (!gl.getProgramParameter(shadersProgram, gl.LINK_STATUS)) 
         alert("ERROR: Couldn't link shaders.");
     
+    // Applying the program to the current context
     gl.useProgram(shadersProgram);
+
+    // Find the program's position attribute's location (address) and enable it so it accepts data
     vertexPositionAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexPosition");
     gl.enableVertexAttribArray(vertexPositionAttributePointer);
 
+    // Find the program's color attribute's location (address) and enable it so it accepts data
     vertexColorAttributePointer = gl.getAttribLocation(shadersProgram, "aVertexColor");
     gl.enableVertexAttribArray(vertexColorAttributePointer);
 
+    // Find the program's uniform variables' locations (addresses) 
     modelUniformPointer = gl.getUniformLocation(shadersProgram, "uModelTransform");
     perspectiveViewUniformPointer = gl.getUniformLocation(shadersProgram, "uPerspectiveViewTransform");
-
-    verticesTransformUniformPointer = gl.getUniformLocation(shadersProgram, "uVerticesTransform");
 }
 
 // Function for initializing buffers
 function initBuffers() {
+    // Initializing the vertices -- coordinates of each angle (X, Y, Z)
     var cubeVertices = new Float32Array([
-                        // Front face
+                        // Front side
                         -1.0, -1.0, 1.0,
                         1.0, -1.0, 1.0,
                         1.0, 1.0, 1.0,
                         -1.0, 1.0, 1.0,
                 
-                        // Back face
+                        // Back side
                         -1.0, -1.0, -1.0,
                         -1.0, 1.0, -1.0,
                         1.0, 1.0, -1.0,
                         1.0, -1.0, -1.0,
                 
-                        // Top face
+                        // Top side
                         -1.0, 1.0, -1.0,
                         -1.0, 1.0, 1.0,
                         1.0, 1.0, 1.0,
                         1.0, 1.0, -1.0,
 
-                        // Bottom face
+                        // Bottom side
                         -1.0, -1.0, -1.0,
                         1.0, -1.0, -1.0,
                         1.0, -1.0, 1.0,
                         -1.0, -1.0, 1.0,
 
-                        // Right face
+                        // Right side
                         1.0, -1.0, -1.0,
                         1.0, 1.0, -1.0,
                         1.0, 1.0, 1.0,
                         1.0, -1.0, 1.0,
 
-                        // Left face
+                        // Left side
                         -1.0, -1.0, -1.0,
                         -1.0, -1.0, 1.0,
                         -1.0, 1.0, 1.0,
                         -1.0, 1.0, -1.0
     ]);
 
+    // Creating a buffer for the angles and activating it, then passing the coordinates to it
     vertexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, cubeVertices, gl.STATIC_DRAW);
-    vertexBuffer.itemSize = 3;
-    vertexBuffer.itemCount = 24;
+    vertexBuffer.itemSize = 3; // Amount of values per angle
+    vertexBuffer.itemCount = 24; // Total amount of angles
 
+    // Initializing an array of colors (R, G, B, A)
     var cubeColors = [
-                        // Front face (red)
+                        // Front side (red)
                         1.0, 0.0, 0.0, 1.0,
 
-                        // Back face (green)
+                        // Back side (green)
                         0.0, 1.0, 0.0, 1.0,
             
-                        // Top face (blue)
+                        // Top side (blue)
                         0.0, 0.0, 1.0, 1.0,
 
-                        // Bottom face (yellow)
+                        // Bottom side (yellow)
                         1.0, 1.0, 0.0, 1.0,
 
-                        // Right face (magenta)
+                        // Right side (magenta)
                         1.0, 0.0, 1.0, 1.0,
             
-                        // Left face (cyan)
+                        // Left side (cyan)
                         0.0, 1.0, 1.0, 1.0
     ];
 
     // Maybe find way to change this -- Done with ai
+    // Repeating the color so it's even on all sides (CHECK THIS)
     var colors = [];
     for (var i = 0; i < cubeColors.length; i += 4) {
         var color = cubeColors.slice(i, i + 4);
@@ -197,17 +199,15 @@ function initBuffers() {
     }
 
     var newColors = new Float32Array(colors);
-
-    console.log("Colors length: ", newColors.length);
-    console.log("Vertices length: ", cubeVertices.length);
     
+    // Creating a buffer for the colors and activating it, then passing the color settings to it
     colorBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, newColors, gl.STATIC_DRAW);
-    //gl.bufferData(gl.ARRAY_BUFFER, cubeColors, gl.STATIC_DRAW);
-    colorBuffer.itemSize = 4;
-    colorBuffer.itemCount = 24;
+    colorBuffer.itemSize = 4; // Amount of values per side
+    colorBuffer.itemCount = 24; // Total amount of data on colors
 
+    // Initializing an array with references to angles (indices)
     var cubeIndeces = new Uint16Array([
                         // Front face
                         0, 1, 2, 0, 2, 3, 
@@ -230,36 +230,30 @@ function initBuffers() {
         
     ])
     
+    // Creating a buffer for the indices
     indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, cubeIndeces, gl.STATIC_DRAW);
-    //indexBuffer.itemSize = 1;
     indexBuffer.itemCount = 36;
 }
 
 // Function for drawing the scene
 function drawScene() {
+    // Reading the value of viewAngle and turning it into rads
     var viewAngle;
     viewAngle = document.getElementById("viewAngleInput").value;
     var viewAngleRads = parseFloat(viewAngle);
     viewAngleRads = viewAngleRads*Math.PI/180.0;
 
-    console.log("View angle in rads: ", viewAngleRads);
-
-    //totalAngle += viewAngleRads;
-
-    /* FOR ROTATION OF CAMERA -- REPLACE [8,8,8] WITH [x, y, totalZ]
-    var x = 5*Math.cos(totalAngle);
-    var y = 5*Math.sin(totalAngle); */
-
+    /* Reading the value of camOrthoDistance -- If it's not changed (aka user hasn't given different input)
+    the default far plane is used. Otherwise, the far plane becomes a multiple of camOrthoDistance */
     var camOrthoDistance = document.getElementById("camOrthoDistance").value;
     var farPlane = 8000;
-    if (camOrthoDistance > 0) // If the user has changed the camera's distance, stop using the default far plane
+    if (camOrthoDistance > 0) 
         farPlane = 10*camOrthoDistance;
 
-    console.log("Camera ortho distance: ", camOrthoDistance);
-    console.log("Far plane: ", farPlane);
-
+    /* Reading the value of camPosition -- Looping through the radio buttons to find the one that's 
+    selected/checked */
     var radioButtons = document.getElementsByName("camPosition");
     var selectedCamPosition;
     for (var i = 0; i < radioButtons.length; i++) {
@@ -269,8 +263,11 @@ function drawScene() {
         }
     }
 
+    console.log("View angle in rads: ", viewAngleRads);
+    console.log("Camera orthogonal distance: ", camOrthoDistance);
     console.log("Selected camera position: ", selectedCamPosition);
 
+    // Creating an array with coordinates according to the selected camera position
     var camPositionArr = [];
     if (selectedCamPosition == "lft")
         camPositionArr = [-camOrthoDistance, -camOrthoDistance, camOrthoDistance];
@@ -289,57 +286,50 @@ function drawScene() {
     else if (selectedCamPosition == "rbb")
         camPositionArr = [camOrthoDistance, camOrthoDistance, -camOrthoDistance];
 
-    console.log("Camera position array: ", camPositionArr);
-
+    // Setting the camera's position 
 	glMatrix.mat4.lookAt(viewMatrix, camPositionArr, [0, 0, 0], [0, 0, 1]);
 	glMatrix.mat4.perspective(perspectiveMatrix, viewAngleRads, 1, 0.001, farPlane);
-    /* view angle = pi/3 (60deg)
-        aspect ratio = 1
-        near visibility threshold = 0.001
-        far visibility threshold = 8000 */
 
+    // Creating a transformation matrix for the view of the scene
 	glMatrix.mat4.multiply(pvMatrix,perspectiveMatrix,viewMatrix);
-	gl.uniformMatrix4fv(perspectiveViewUniformPointer, false, pvMatrix);
+	gl.uniformMatrix4fv(perspectiveViewUniformPointer, false, pvMatrix); // Passing the uniform to the matrix
     
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); // Clearing backgrounf and z-buffer
+    // Clearing the background and z-buffer
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); 
 
+    // Binding the vertex position and color buffer
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     gl.vertexAttribPointer(vertexPositionAttributePointer, vertexBuffer.itemSize, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
     gl.vertexAttribPointer(vertexColorAttributePointer, colorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+    // Binding the index buffer
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
 
-
+    // Creating the translation matrix and drawing the scene (cube)
     glMatrix.mat4.fromTranslation(translationMatrix, [0, 0, 0]);
     gl.uniformMatrix4fv(modelUniformPointer, false, translationMatrix);
     gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);    
-
-
-    /*
-    glMatrix.mat4.fromXRotation(rotationXMatrix, totalAngle);
-
-    //glMatrix.mat4.fromTranslation(translationMatrix, [totalX, totalY, 0]);
-    
-    gl.uniformMatrix4fv(verticesTransformUniformPointer, false, rotationXMatrix);
-    //gl.uniformMatrix4fv(verticesTransformUniformPointer, false, translationMatrix);
-
-    gl.drawElements(gl.TRIANGLES, indexBuffer.itemCount, gl.UNSIGNED_SHORT, 0);*/
 }
 
 function main() {
-    var minWindowDimension = Math.min(window.innerHeight, window.innerWidth); // Minimum window dimension
+    // Setting the minimum window dimension
+    var minWindowDimension = Math.min(window.innerHeight, window.innerWidth);
     
+    // Setting the canvas' dimensions -- Can be changed
     canvas = document.getElementById("sceneCanvas");
-    // Setting the canvas' dimensions (can change this)
     canvas.width = 0.95*minWindowDimension; 
     canvas.height = 0.95*minWindowDimension;
 
     gl = createGLContext(canvas);
-    //gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas)); // REMEMBER TO CREATE FUNCTION FOR THIS
+    //gl = WebGLDebugUtils.makeDebugContext(createGLContext(canvas)); // Might need to create context like this
 
-    initShaders(); // Initializing shaders
-    initBuffers(); // Initializing buffers
-    gl.clearColor(0.5, 0.5, 0.5, 1.0); // Setting the background color to be a dark gray
+    // Initializing the shaders & buffers
+    initShaders();
+    initBuffers(); 
+
+    // Setting the background color to be a dark gray
+    gl.clearColor(0.5, 0.5, 0.5, 1.0); 
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
     gl.enable(gl.DEPTH_TEST);
@@ -352,12 +342,16 @@ function startAnimation() {
         requestID = window.requestAnimationFrame(animationStep);
 }
 
-function animationStep() {
+function animationStep() {  
+    /* Drawing a new version of the scene and requesting animation frame. The request ID is received and the 
+    call is placed in a callback list. This is repeated */
     drawScene();
     requestID = window.requestAnimationFrame(animationStep);
 }
 
 function stopAnimation() {
+    /* Requesting to cancel the recall of animationStep(), by using the last request ID that's been received.
+    The request ID is then set to 0 so it can restart */
     window.cancelAnimationFrame(requestID);
     requestID = 0;
 }
